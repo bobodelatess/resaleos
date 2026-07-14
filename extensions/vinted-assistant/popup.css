@@ -1,0 +1,17 @@
+:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+* { box-sizing: border-box; }
+body { width: 340px; margin: 0; background: #101310; color: #f1f5ec; }
+main { padding: 18px; }
+.eyebrow { margin: 0 0 4px; color: #c9f36a; font-size: 10px; font-weight: 800; letter-spacing: .16em; }
+h1 { margin: 0 0 8px; font-size: 20px; }
+.intro, .warning, #status { color: #aab3a4; font-size: 12px; line-height: 1.45; }
+.file-label, button { display: flex; min-height: 40px; align-items: center; justify-content: center; border: 1px solid #3a4337; border-radius: 9px; background: #1a2119; color: #ecf3e7; font-size: 12px; font-weight: 700; cursor: pointer; }
+.file-label:hover { border-color: #c9f36a; }
+.file-label input { display: none; }
+textarea { width: 100%; margin: 9px 0; resize: vertical; border: 1px solid #30382e; border-radius: 9px; background: #0b0e0b; padding: 10px; color: #e8eee4; font: 11px/1.4 ui-monospace, monospace; }
+button { width: 100%; border-color: #c9f36a; background: #c9f36a; color: #11150f; }
+button:disabled { cursor: wait; opacity: .55; }
+#status { min-height: 18px; margin: 9px 0; }
+#status.success { color: #c9f36a; }
+#status.error { color: #ff8f8f; }
+.warning { margin: 0; border-top: 1px solid #293027; padding-top: 10px; font-size: 10px; }

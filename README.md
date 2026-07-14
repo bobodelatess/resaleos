@@ -1,80 +1,64 @@
 # ResaleOS
 
-ResaleOS est un poste de pilotage local pour l’achat-revente, utilisable sans compte Vinted Pro. Il transforme une annonce repérée en décision chiffrée, puis suit l’article jusqu’à la vente.
+ResaleOS automatise le flux d'achat-revente d'un vêtement, de ses photos jusqu'au brouillon d'annonce et aux réponses acheteur. Le projet fonctionne sans compte Vinted Pro et garde une validation humaine sur l'achat, les faits observés et le dernier clic de publication.
 
-## Ce qui fonctionne déjà
+## Flux livré
 
-- analyse d’une opportunité avec coût complet : article, protection acheteur, port entrant et préparation ;
-- scénarios de revente P10, P50 et P90 ;
-- calcul automatique du profit, du ROI, du prix d’achat maximal, de la cible de négociation et d’un score sur 100 ;
-- recommandation `Acheter`, `Négocier` ou `Ignorer` selon tes propres seuils ;
-- pipeline `À étudier → Commandé → Reçu → En vente → Vendu` ;
-- réception avec génération d’un SKU, emplacement de stockage et QR code ;
-- stockage et compression locale des photos ;
-- brouillon d’annonce factuel, modifiable et copiable ;
-- suivi du prix réellement encaissé et du profit réalisé ;
-- tableau de bord, inventaire, ventes et paramètres ;
-- sauvegarde automatique dans le navigateur, export et import JSON ;
-- interface responsive et installable comme application web.
+- application web de décision : coût complet, P10/P50/P90, profit, ROI, prix d'achat maximal, score et recommandation ;
+- inventaire : commande, réception, SKU, QR code, emplacement, mise en vente et vente réelle ;
+- analyse IA de 1 à 8 photos avec sortie structurée et validée : identification, état, défauts visibles, risques, prix, délai et annonce ;
+- génération factuelle du titre, de la description, du prix et de la taille du colis ;
+- bot Telegram opérationnel : `/new` → photos → contexte → `/go` → annonce ;
+- brouillon de réponse acheteur via `/reply` ;
+- adaptateur générique pour un outil externe de détourage ou d'amélioration photo ;
+- extension Chrome/Edge qui préremplit photos, titre, description et prix dans la page Vinted ;
+- sauvegarde locale IndexedDB et export/import JSON.
 
-Toutes les données restent dans le navigateur. Aucun compte Vinted, serveur ou abonnement IA n’est nécessaire pour cette version.
-
-## Lancer l’application
+## Démarrage local
 
 Prérequis : Node.js 20.9 ou plus récent.
 
 ```bash
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
-Ouvre ensuite [http://localhost:3000](http://localhost:3000).
-
-Pour tester exactement la version de production :
+L'application est disponible sur [http://localhost:3000](http://localhost:3000). Pour appeler un modèle depuis la machine locale, renseigne `AI_GATEWAY_API_KEY` dans `.env.local`.
 
 ```bash
+npm run lint
 npm run build
 npm run start
 ```
 
-## Utilisation recommandée
+## Mise en service
 
-1. Ouvre une annonce qui semble intéressante.
-2. Dans ResaleOS, clique sur **Nouvelle analyse** et reporte les informations visibles.
-3. Ajuste les trois hypothèses de revente puis laisse le système appliquer tes seuils.
-4. Ne passe l’article à **Commandé** qu’après le paiement réel.
-5. À la livraison, clique sur **Réceptionner l’article** : le SKU et le QR code sont créés.
-6. Ajoute tes vraies photos, génère le brouillon puis publie-le sur Vinted.
-7. À la vente, saisis le montant réellement encaissé.
+Le guide pas à pas est dans [`docs/SETUP.md`](docs/SETUP.md). L'analyse des canaux, des fournisseurs IA, du traitement photo et des niveaux d'automatisation Vinted est dans [`docs/AUTOMATION_BLUEPRINT.md`](docs/AUTOMATION_BLUEPRINT.md).
 
-La démonstration initiale contient plusieurs articles fictifs. Tu peux la recharger ou repartir de zéro depuis **Paramètres**.
+Les secrets sont documentés dans `.env.example` et ne doivent jamais être commités. En production, l'API d'automatisation refuse les requêtes si `RESALE_AUTOMATION_SECRET` n'est pas configuré.
 
-## Limites actuelles
+## Assistant Vinted sans Pro
 
-Sans connecteur de compte autorisé, la détection des nouvelles annonces, l’achat, la messagerie et la publication finale restent manuels. ResaleOS n’effectue ni scraping, ni action automatique sur un compte Vinted. Il automatise aujourd’hui la décision, les calculs, le stock, les textes et la mesure des résultats.
+L'extension se trouve dans [`extensions/vinted-assistant`](extensions/vinted-assistant). Dans ResaleOS, ouvre un article, onglet **Annonce**, puis télécharge **Paquet assistant Vinted**. Charge ce fichier dans l'extension sur la page de création d'annonce.
 
-La prochaine couche prévue peut ajouter :
-
-- un adaptateur vers ton outil d’IA pour lire les photos et préremplir les champs ;
-- une capture rapide depuis le navigateur ou le presse-papiers ;
-- des alertes de sourcing ;
-- un connecteur Vinted Pro ou une autre intégration officiellement disponible ;
-- une synchronisation chiffrée entre plusieurs appareils.
-
-## Scripts
-
-```bash
-npm run dev      # développement
-npm run lint     # qualité du code
-npm run build    # export statique dans out/
-npm run start    # sert localement le dossier out/
-```
+L'extension ne clique pas sur **Publier**. Elle automatise la saisie répétitive tout en laissant le contrôle final sur les champs réellement affichés par Vinted.
 
 ## Structure
 
-- `src/lib/finance.ts` : moteur de décision et formules financières ;
-- `src/lib/storage.ts` : persistance IndexedDB et sauvegardes ;
-- `src/lib/listing.ts` : génération factuelle des annonces ;
-- `src/components/` : dashboard et parcours opérationnels ;
-- `public/sw.js` : fonctionnement de type PWA après compilation.
+- `src/lib/automation/` : schémas, prompts, moteur IA, sessions et canaux ;
+- `src/app/api/automation/` : analyse photo, réponses et traitement d'images ;
+- `src/app/api/channels/telegram/` : webhook Telegram ;
+- `src/lib/finance.ts` : moteur de décision ;
+- `src/lib/storage.ts` : IndexedDB et compression d'images ;
+- `src/components/` : application opérationnelle ;
+- `extensions/vinted-assistant/` : remplissage assisté sans API Vinted ;
+- `scripts/` : découverte du chat Telegram et enregistrement du webhook.
 
+## Références officielles
+
+- [Vinted Pro Integrations](https://pro-docs.svc.vinted.com/)
+- [Telegram Bot API](https://core.telegram.org/bots/api)
+- [WhatsApp Cloud API](https://www.postman.com/meta/whatsapp-business-platform/overview)
+- [Vercel AI SDK](https://ai-sdk.dev/docs)
+- [Upstash Redis REST](https://upstash.com/docs/redis/features/restapi)

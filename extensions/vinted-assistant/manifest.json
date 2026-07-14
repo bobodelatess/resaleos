@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "ResaleOS — Assistant Vinted",
+  "version": "0.1.0",
+  "description": "Préremplit une annonce Vinted depuis un paquet ResaleOS, sans cliquer sur Publier.",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["https://*.vinted.fr/*"],
+  "action": {
+    "default_title": "ResaleOS",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.vinted.fr/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

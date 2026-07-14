@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ResaleOS</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">RESALEOS</p>
+      <h1>Préremplir l’annonce</h1>
+      <p class="intro">Ouvre la page de création Vinted, puis charge le paquet JSON exporté depuis ResaleOS.</p>
+      <label class="file-label">
+        Choisir le paquet
+        <input id="package-file" type="file" accept="application/json,.json" />
+      </label>
+      <textarea id="package-text" rows="5" placeholder="Ou colle ici le JSON du paquet…"></textarea>
+      <button id="fill" type="button">Remplir la page</button>
+      <p id="status" role="status">Aucun paquet chargé.</p>
+      <p class="warning">L’extension ne publie jamais. Vérifie photos, état, catégorie, taille et défauts avant ton dernier clic.</p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
