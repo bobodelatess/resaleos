@@ -2,7 +2,7 @@
 
 ## Résultat visé
 
-L'opérateur doit pouvoir poser un vêtement, prendre les photos utiles, les envoyer depuis son téléphone et ne plus faire que trois contrôles : vérifier les faits physiques, accepter ou corriger le prix, puis confirmer la publication.
+L'opérateur doit pouvoir recevoir une sélection d'achats, envoyer les photos réelles depuis son téléphone et ne garder que trois décisions : acheter, approuver l'annonce et choisir une offre rentable.
 
 ```text
 Photos + contexte
@@ -11,11 +11,11 @@ Canal d'entrée (Telegram aujourd'hui, WhatsApp ensuite)
        ↓
 Contrôle qualité photo → vision/OCR → fiche structurée
        ↓
-Estimation + risque + annonce + réponses acheteur
+GPT Image 2 → audit de fidélité original/dérivé
        ↓
-ResaleOS / assistant navigateur / API Vinted Pro
+Annonce + extension Vinted + moteur de négociation
        ↓
-Validation humaine → publication → stock → vente
+Telegram pour les seules décisions intéressantes
 ```
 
 Le cœur ne dépend ni de Telegram ni d'un fournisseur IA. Les données passent par des schémas Zod stricts, ce qui permet de remplacer le modèle ou le canal sans modifier le reste du produit.
@@ -31,7 +31,7 @@ Le cœur ne dépend ni de Telegram ni d'un fournisseur IA. Les données passent 
 | Email entrant | Moyenne | Oui | Bonne | Universel mais plus lent et moins conversationnel |
 | Dossier cloud surveillé | Moyenne | Oui | Bonne | Traitement par lots, peu adapté aux questions/réponses |
 
-Telegram est le meilleur point de départ : API HTTP officielle, webhooks, réception de photos et aucune création de portefeuille professionnel. WhatsApp Cloud API est prévu comme second adaptateur, mais demande un portefeuille Meta Business, un compte WhatsApp Business et un numéro dédié.
+Telegram est le meilleur point de départ et il est implémenté : API HTTP officielle, photos, boutons inline et webhooks. WhatsApp Cloud API reste un second adaptateur réaliste, mais demande un portefeuille Meta Business, un compte WhatsApp Business et un numéro dédié.
 
 ## Chaîne photo
 
@@ -52,11 +52,11 @@ Telegram est le meilleur point de départ : API HTTP officielle, webhooks, réce
 - créer une photo portée qui pourrait faire croire qu'elle représente l'article réel ;
 - transformer une supposition en certification d'authenticité.
 
-Les originaux restent la source de vérité. Les images traitées sont des dérivés et le contrat `marketplace-factual` interdit explicitement les retouches trompeuses.
+Les originaux restent la source de vérité. Le flux principal crée désormais trois dérivés avec GPT Image 2 puis demande à GPT‑5.6 de comparer chaque dérivé à toutes les références. Une seule image refusée bloque le paquet complet. L'adaptateur `marketplace-factual` reste disponible pour un autre fournisseur.
 
 ## Choix du moteur IA
 
-Le code utilise Vercel AI SDK et une sortie structurée ; `RESALE_AI_MODEL` sélectionne le modèle sans modifier le code.
+Le code utilise Vercel AI SDK et une sortie structurée ; `RESALE_AI_MODEL` sélectionne le modèle texte/vision sans modifier le code. La valeur livrée est `openai/gpt-5.6`. `gpt-image-2` est appelé directement avec plusieurs références pour les visuels.
 
 | Famille | Point fort pour ce projet | Point à mesurer |
 |---|---|---|
@@ -85,11 +85,11 @@ Les prix produits par un modèle généraliste ne sont pas des comparables temps
 
 ### Sans Vinted Pro — disponible maintenant
 
-1. ResaleOS génère le brouillon et le paquet d'annonce.
-2. L'extension locale préremplit photos, titre, description et prix.
-3. L'opérateur vérifie catégorie, marque, taille, état, défauts et clique sur **Publier**.
+1. Telegram approuve un job dont toutes les images ont passé l'audit.
+2. L'extension récupère ce job côté serveur et remplit photos, titre, description, prix, puis tente catégorie, marque, taille, état et colis.
+3. Si l'option est activée et qu'aucun champ requis ne manque, elle clique sur **Publier** et accuse réception au serveur.
 
-C'est le meilleur compromis actuel : presque toute la saisie disparaît, sans dépendre d'un bot opaque qui casserait dès qu'un sélecteur, une session ou un contrôle anti-automatisation change.
+Le DOM reste fragile : si un sélecteur n'est plus reconnu, la publication est bloquée mais les champs trouvés restent remplis.
 
 ### Automatisation navigateur complète — techniquement possible, mauvais socle
 
@@ -101,13 +101,13 @@ La documentation Vinted Pro Integrations prévoit un jeton obtenu dans le portai
 
 ## Messages acheteur
 
-Trois niveaux sont réalistes :
+Trois niveaux sont implémentés :
 
-1. brouillon prêt à copier, déjà disponible avec `/reply` ;
-2. envoi automatique uniquement pour les réponses factuelles à haute confiance ;
-3. validation obligatoire pour remise, mesure absente, engagement d'expédition, litige ou question d'authenticité.
+1. `/reply` pour un brouillon manuel ;
+2. envoi automatique par l'extension pour les réponses factuelles à haute confiance et les contre‑offres sous le plancher ;
+3. décision Telegram pour une offre rentable, une mesure absente ou un fait à vérifier.
 
-Sans API de messagerie du compte Vinted, l'envoi automatique dépendrait encore du navigateur. Avec une intégration officielle, le même moteur de réponse peut rester inchangé et seul l'adaptateur d'envoi évolue.
+Sans API de messagerie du compte Vinted, l'envoi dépend de la conversation ouverte dans le navigateur. Une intégration officielle remplacerait seulement cet adaptateur.
 
 ## Sourcing et achat
 
@@ -124,7 +124,7 @@ L'achat totalement automatique est le point le moins robuste : il implique dispo
 
 ## Données et orchestration
 
-Le premier bot utilise Upstash Redis uniquement pour les sessions de 48 heures : identifiants de photos, contexte et dernière analyse. Les données de gestion restent aujourd'hui dans IndexedDB.
+Le bot utilise Upstash Redis pour les sessions photo de 48 heures et pour les jobs/actions de 14 jours. Les données de gestion restent aujourd'hui dans IndexedDB.
 
 La prochaine étape multi-appareils est une base Postgres :
 
@@ -150,21 +150,22 @@ Un stockage objet conserve les photos ; Postgres ne garde que les URL et métado
 
 ## Feuille de route
 
-### Phase 1 — immédiatement exploitable
+### Phase 1 — livrée, à configurer
 
-- déployer le projet ;
-- brancher AI Gateway et Redis ;
-- activer Telegram ;
-- connecter l'outil d'images choisi ;
-- utiliser l'extension de préremplissage.
+- GPT‑5.6 et GPT Image 2 ;
+- Redis + Blob ;
+- Telegram avec boutons ;
+- sourcing sur page visible ;
+- génération/audit des images ;
+- extension de publication et de négociation.
 
-### Phase 2 — supprimer les doubles saisies
+### Phase 2 — consolider les données
 
 - Postgres + stockage objet ;
 - boîte de réception commune web/Telegram ;
 - historique de ventes pour calibrer les prix ;
 - files de tâches, retries et suivi du coût IA ;
-- règles de réponses automatiques à haute confiance.
+- historique des réponses automatiques et taux de correction.
 
 ### Phase 3 — augmenter le volume
 

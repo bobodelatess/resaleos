@@ -8,17 +8,53 @@
   </head>
   <body>
     <main>
-      <p class="eyebrow">RESALEOS</p>
-      <h1>Préremplir l’annonce</h1>
-      <p class="intro">Ouvre la page de création Vinted, puis charge le paquet JSON exporté depuis ResaleOS.</p>
-      <label class="file-label">
-        Choisir le paquet
-        <input id="package-file" type="file" accept="application/json,.json" />
-      </label>
-      <textarea id="package-text" rows="5" placeholder="Ou colle ici le JSON du paquet…"></textarea>
-      <button id="fill" type="button">Remplir la page</button>
-      <p id="status" role="status">Aucun paquet chargé.</p>
-      <p class="warning">L’extension ne publie jamais. Vérifie photos, état, catégorie, taille et défauts avant ton dernier clic.</p>
+      <header>
+        <div>
+          <p class="eyebrow">RESALEOS AGENT</p>
+          <h1>Achat → vente</h1>
+        </div>
+        <span class="live">GPT‑5.6</span>
+      </header>
+
+      <section>
+        <h2>Connexion</h2>
+        <label>URL ResaleOS<input id="api-url" type="url" placeholder="https://resaleos.vercel.app" /></label>
+        <label>Secret<input id="api-secret" type="password" placeholder="RESALE_AUTOMATION_SECRET" /></label>
+        <button id="save" class="secondary" type="button">Enregistrer</button>
+      </section>
+
+      <section>
+        <h2>Sourcing</h2>
+        <div class="grid-3">
+          <label>Budget<input id="budget" type="number" min="0" value="300" /></label>
+          <label>Profit min.<input id="min-profit" type="number" min="0" value="15" /></label>
+          <label>ROI min. %<input id="min-roi" type="number" min="0" value="40" /></label>
+        </div>
+        <label class="toggle"><input id="auto-sourcing" type="checkbox" /><span>Analyser automatiquement les pages de recherche</span></label>
+        <button id="scan" type="button">Classer cette page</button>
+      </section>
+
+      <section>
+        <h2>Annonce approuvée</h2>
+        <label class="toggle"><input id="auto-publish" type="checkbox" /><span>Cliquer sur Publier si tous les champs sont sûrs</span></label>
+        <button id="latest" type="button">Récupérer et remplir Vinted</button>
+      </section>
+
+      <section>
+        <h2>Messagerie</h2>
+        <label class="toggle"><input id="auto-messages" type="checkbox" /><span>Réponses et contre‑offres automatiques</span></label>
+        <button id="sync" class="secondary" type="button">Exécuter mes décisions Telegram</button>
+      </section>
+
+      <details>
+        <summary>Paquet JSON manuel</summary>
+        <label class="file-label">Choisir un paquet<input id="package-file" type="file" accept="application/json,.json" /></label>
+        <textarea id="package-text" rows="4" placeholder="Ou colle le JSON…"></textarea>
+        <button id="fill" class="secondary" type="button">Remplir ce paquet</button>
+      </details>
+
+      <p id="status" role="status">Configure l’URL et le secret une seule fois.</p>
+      <p class="warning">Une acceptation d’offre ne part qu’après ton bouton Telegram. Une image non fidèle reste bloquée côté serveur.</p>
     </main>
     <script src="popup.js"></script>
   </body>

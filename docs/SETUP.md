@@ -1,126 +1,138 @@
 # Mise en service de ResaleOS
 
-Le chemin recommandé est **GitHub → Vercel → AI Gateway + Upstash → Telegram**. Il donne un bot photo utilisable depuis le téléphone avec peu de configuration et laisse WhatsApp pour une seconde étape.
+Le chemin recommandé est **GitHub → Vercel → AI Gateway + Blob + Upstash → Telegram → extension**. Un abonnement ChatGPT ne fournit pas une clé API : GPT‑5.6/GPT Image 2 sont facturés via les intégrations serveur configurées ici.
 
-## 1. Déployer l'application
+## 1. Déployer
 
-1. Dans Vercel, importe le dépôt GitHub `bobodelatess/resaleos`.
-2. Garde le framework détecté **Next.js** et les commandes par défaut.
-3. Active AI Gateway pour le projet. Un déploiement Vercel peut utiliser l'authentification OIDC ; pour un autre hébergeur, crée une clé et renseigne `AI_GATEWAY_API_KEY`.
-4. Ajoute une base **Upstash Redis** depuis le Marketplace Vercel et lie-la au projet. Les variables `UPSTASH_REDIS_REST_URL` et `UPSTASH_REDIS_REST_TOKEN` doivent apparaître dans le projet.
+1. Dans Vercel, importe `bobodelatess/resaleos`.
+2. Garde Next.js et les commandes détectées.
+3. Active **AI Gateway** pour le projet.
+4. Dans Vercel Marketplace, ajoute **Upstash Redis** et lie-le au projet.
+5. Ajoute un store **Vercel Blob** public. Vercel injecte normalement `BLOB_READ_WRITE_TOKEN`.
 
-## 2. Créer les secrets
+Upstash conserve les états et décisions pendant quatorze jours. Blob rend les trois images validées accessibles à Telegram et à l'extension.
 
-Génère deux valeurs distinctes :
+## 2. Configurer les modèles
+
+Dans Vercel, ajoute :
+
+```text
+RESALE_AI_MODEL=openai/gpt-5.6
+RESALE_IMAGE_MODEL=gpt-image-2
+OPENAI_API_KEY=<clé API OpenAI côté serveur>
+RESALE_DEFAULT_MIN_PROFIT=15
+RESALE_DEFAULT_MIN_ROI=40
+```
+
+AI Gateway peut utiliser l'OIDC du projet ; hors Vercel, configure `AI_GATEWAY_API_KEY`. L'API Images utilise actuellement `OPENAI_API_KEY` directement afin d'envoyer plusieurs fichiers de référence à `images.edit`. Selon le compte, OpenAI peut demander la vérification de l'organisation avant l'utilisation des modèles d'image.
+
+## 3. Créer les secrets
+
+Génère deux valeurs différentes :
 
 ```bash
 openssl rand -hex 32
 openssl rand -hex 32
 ```
 
-Dans les variables Vercel, configure :
+Ajoute-les dans Vercel :
 
 ```text
-RESALE_AI_MODEL=openai/gpt-5.4
 RESALE_AUTOMATION_SECRET=<première valeur>
 TELEGRAM_WEBHOOK_SECRET=<seconde valeur>
 ```
 
-Ne mets jamais ces valeurs dans GitHub. Le secret d'automatisation est demandé une seule fois par l'interface web et reste dans le stockage local du navigateur.
+Ne les place ni dans GitHub ni dans une variable `NEXT_PUBLIC_*`.
 
-## 3. Créer le bot Telegram
+## 4. Créer Telegram
 
-1. Dans Telegram, ouvre `@BotFather`.
-2. Envoie `/newbot`, choisis un nom et récupère le jeton.
-3. Ajoute temporairement ce jeton dans `.env.local` sur ta machine :
-
-```text
-TELEGRAM_BOT_TOKEN=123456:jeton-fourni-par-botfather
-```
-
-4. Envoie `/start` à ton nouveau bot.
-5. Avant d'enregistrer le webhook, lance :
-
-```bash
-npm run telegram:chat-id
-```
-
-6. Copie l'identifiant obtenu dans `TELEGRAM_ALLOWED_CHAT_ID`, localement et dans Vercel. Cette restriction empêche d'autres comptes d'utiliser ton budget IA.
-7. Ajoute aussi `TELEGRAM_BOT_TOKEN` dans les variables Vercel, puis redéploie.
-
-## 4. Enregistrer le webhook
-
-Dans `.env.local`, renseigne le même `TELEGRAM_WEBHOOK_SECRET` que sur Vercel, puis lance :
+1. Ouvre `@BotFather`, envoie `/newbot` et récupère le jeton.
+2. Ajoute `TELEGRAM_BOT_TOKEN` dans Vercel et temporairement dans `.env.local`.
+3. Envoie `/start` à ton bot.
+4. Lance localement `npm run telegram:chat-id`.
+5. Copie l'identifiant dans `TELEGRAM_ALLOWED_CHAT_ID` sur Vercel.
+6. Redéploie le projet.
+7. Avec le même secret local que dans Vercel, enregistre le webhook :
 
 ```bash
 npm run telegram:webhook -- https://ton-projet.vercel.app
 ```
 
-Teste ensuite dans Telegram :
+Le script inscrit les mises à jour `message` et `callback_query`, indispensables aux boutons de décision.
+
+## 5. Vérifier le serveur
+
+Ouvre :
 
 ```text
-/new
-<envoie 1 à 8 photos>
-Prix d'achat 18 €, taille M, petite trace montrée sur la photo 4
-/go
+https://ton-projet.vercel.app/api/health
 ```
 
-Pour préparer une réponse à un acheteur après l'analyse :
-
-```text
-/reply Bonjour, vous pouvez faire 30 € et envoyer demain ?
-```
-
-Le bot demande une validation humaine dès que la réponse implique une remise, une mesure ou un engagement non présent dans la fiche.
-
-## 5. Activer ton outil d'images
-
-ResaleOS expose un contrat fournisseur neutre. Configure :
-
-```text
-RESALE_IMAGE_PROCESSOR_URL=https://ton-outil.example/webhook
-RESALE_IMAGE_PROCESSOR_SECRET=<secret du webhook>
-```
-
-Le webhook reçoit :
+Le flux complet demande :
 
 ```json
 {
-  "images": ["data:image/jpeg;base64,..."],
-  "preset": "marketplace-factual",
-  "instructions": {
-    "allowed": ["crop", "straighten", "exposure", "white-balance", "neutral-background"],
-    "forbidden": ["hide-defect", "change-color", "change-shape", "add-detail", "remove-label"],
-    "keepOriginals": true
-  }
+  "imageGenerationConfigured": true,
+  "telegramConfigured": true,
+  "durableSessionsConfigured": true,
+  "autonomousWorkflowReady": true
 }
 ```
 
-Il doit répondre :
+Les booléens n'exposent aucune valeur secrète.
 
-```json
-{ "images": ["https://url-publique/image-1.jpg"] }
-```
+## 6. Installer l'extension
 
-Indique le nom de ton outil d'images avant de finaliser cet adaptateur : son schéma d'API sera branché directement derrière cette interface.
-
-## 6. Installer l'assistant Vinted
-
-1. Clone ou télécharge le dépôt.
+1. Télécharge ou clone le dépôt.
 2. Ouvre `chrome://extensions` ou `edge://extensions`.
 3. Active le mode développeur.
-4. Charge le dossier `extensions/vinted-assistant` comme extension non empaquetée.
-5. Depuis l'onglet **Annonce** de ResaleOS, télécharge le paquet JSON, ouvre la page de création Vinted et charge ce paquet dans l'extension.
+4. Charge `extensions/vinted-assistant` comme extension non empaquetée.
+5. Dans son panneau, saisis :
+   - l'URL `https://ton-projet.vercel.app` ;
+   - la valeur de `RESALE_AUTOMATION_SECRET`.
+6. Laisse d'abord **publication automatique** et **messages automatiques** désactivés pour le test initial.
 
-L'interface de Vinted évolue : si un champ n'est plus reconnu, le reste continue d'être rempli et l'extension indique ce qu'elle a trouvé.
+## 7. Test de bout en bout
+
+Dans Telegram :
+
+```text
+/new
+<envoie face, dos, étiquette, taille/composition, défauts>
+achat 18 €, frais 2 €, profit 15 €, ROI 40, taille M
+/go
+```
+
+Résultat attendu :
+
+1. analyse de l'article ;
+2. trois photos générées ;
+3. audit de fidélité ;
+4. photos et annonce dans Telegram ;
+5. bouton **Approuver et publier**.
+
+Après approbation, ouvre la page de création d'annonce Vinted, puis clique **Récupérer et remplir Vinted** dans l'extension. Vérifie les champs reconnus. Active ensuite les automatismes voulus.
+
+## 8. Tester le sourcing
+
+Ouvre une page de résultats Vinted avec plusieurs cartes. Dans l'extension, fixe budget, profit et ROI puis clique **Classer cette page**. Le classement détaillé et les liens doivent arriver dans Telegram. L'analyse automatique peut ensuite être activée.
+
+## 9. Tester les messages
+
+1. Garde l'annonce approuvée comme dernier paquet de l'extension.
+2. Active **Réponses et contre‑offres automatiques**.
+3. Ouvre la conversation Vinted concernée.
+4. Une question factuelle peut recevoir une réponse automatique.
+5. Une offre sous le plancher reçoit une contre‑offre ; une offre rentable arrive dans Telegram.
+6. Après ton bouton, laisse la bonne conversation ouverte ou clique **Exécuter mes décisions Telegram**.
 
 ## Diagnostic
 
-`GET /api/health` indique uniquement si chaque intégration est configurée, sans exposer de secret.
+- `401 Accès refusé` : le secret de l'extension et celui de Vercel diffèrent.
+- aucune réponse Telegram : vérifie `TELEGRAM_ALLOWED_CHAT_ID`, le webhook et les logs Vercel.
+- génération image refusée : vérifie `OPENAI_API_KEY`, la vérification de l'organisation et Vercel Blob.
+- job perdu entre deux requêtes : vérifie les deux variables Upstash REST.
+- champs Vinted manquants : recharge l'extension et l'onglet ; si l'interface a changé, ajuste les termes dans `content.js`.
+- décision offre non exécutée : ouvre exactement l'URL de conversation enregistrée puis relance la synchronisation.
 
-- `aiConfigured` : modèle choisi ;
-- `telegramConfigured` : jeton présent ;
-- `durableSessionsConfigured` : Redis prêt ;
-- `imageProcessorConfigured` : webhook d'images présent.
-
-En production, Redis est nécessaire pour conserver les photos Telegram entre plusieurs appels serveur. Le stockage mémoire n'est destiné qu'au développement local.
+L'ancien endpoint `/api/automation/images` reste disponible comme adaptateur vers `RESALE_IMAGE_PROCESSOR_URL`, mais le workflow Telegram principal utilise GPT Image 2 + audit de fidélité.

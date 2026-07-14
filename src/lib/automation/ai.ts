@@ -2,10 +2,25 @@ import { generateText, Output } from "ai";
 import {
   buyerReplySchema,
   garmentAnalysisSchema,
+  imageAuditSchema,
+  negotiationAssessmentSchema,
+  sourcingRankingSchema,
   type BuyerReply,
   type GarmentAnalysis,
+  type ImageAudit,
+  type NegotiationAssessment,
+  type NegotiationRequest,
+  type SourcingCandidate,
+  type SourcingProfile,
+  type SourcingRanking,
 } from "./schemas";
-import { BUYER_REPLY_SYSTEM, GARMENT_ANALYSIS_SYSTEM } from "./prompts";
+import {
+  BUYER_REPLY_SYSTEM,
+  GARMENT_ANALYSIS_SYSTEM,
+  IMAGE_AUDIT_SYSTEM,
+  NEGOTIATION_SYSTEM,
+  SOURCING_SYSTEM,
+} from "./prompts";
 
 export interface AutomationImage {
   data: string | Uint8Array | ArrayBuffer | URL;
@@ -13,7 +28,7 @@ export interface AutomationImage {
 }
 
 function modelId(): string {
-  return process.env.RESALE_AI_MODEL?.trim() || "openai/gpt-5.4";
+  return process.env.RESALE_AI_MODEL?.trim() || "openai/gpt-5.6";
 }
 
 export async function analyzeGarment({
@@ -84,5 +99,117 @@ export async function draftBuyerReply({
       .join("\n\n"),
   });
 
+  return output;
+}
+
+export async function rankSourcingCandidates({
+  candidates,
+  profile,
+}: {
+  candidates: SourcingCandidate[];
+  profile: SourcingProfile;
+}): Promise<SourcingRanking> {
+  const normalized = candidates.map((candidate) => ({
+    ...candidate,
+    totalPrice:
+      candidate.totalPrice ??
+      candidate.price + candidate.shippingPrice + candidate.buyerProtectionPrice,
+  }));
+  const { output } = await generateText({
+    model: modelId(),
+    output: Output.object({
+      schema: sourcingRankingSchema,
+      name: "sourcing_ranking",
+      description: "Classement prudent d'annonces d'achat-revente visibles",
+    }),
+    system: SOURCING_SYSTEM,
+    prompt: `Profil :\n${JSON.stringify(profile)}\n\nCandidats :\n${JSON.stringify(normalized)}`,
+  });
+
+  const candidateIds = new Set(normalized.map(({ id }) => id));
+  const seen = new Set<string>();
+  const recommendations = output.recommendations
+    .filter(({ candidateId }) => candidateIds.has(candidateId) && !seen.has(candidateId))
+    .map((recommendation) => {
+      seen.add(recommendation.candidateId);
+      return recommendation;
+    })
+    .sort((left, right) => left.rank - right.rank)
+    .map((recommendation, index) => ({ ...recommendation, rank: index + 1 }));
+
+  if (!recommendations.length) {
+    throw new Error("Le classement IA ne correspond à aucun candidat fourni.");
+  }
+  return { ...output, recommendations };
+}
+
+export async function auditGeneratedImages({
+  originals,
+  generated,
+}: {
+  originals: AutomationImage[];
+  generated: Array<AutomationImage & { role: "hero" | "front" | "back" | "detail" }>;
+}): Promise<ImageAudit> {
+  const content: Array<
+    | { type: "text"; text: string }
+    | { type: "image"; image: AutomationImage["data"]; mediaType?: string }
+  > = [{ type: "text", text: "PHOTOS RÉELLES DE RÉFÉRENCE" }];
+
+  originals.forEach((image, index) => {
+    content.push({ type: "text", text: `Référence réelle ${index + 1}` });
+    content.push({ type: "image", image: image.data, mediaType: image.mediaType });
+  });
+  content.push({ type: "text", text: "IMAGES PRÉPARÉES À AUDITER" });
+  generated.forEach((image) => {
+    content.push({ type: "text", text: `Rôle : ${image.role}` });
+    content.push({ type: "image", image: image.data, mediaType: image.mediaType });
+  });
+
+  const { output } = await generateText({
+    model: modelId(),
+    output: Output.object({
+      schema: imageAuditSchema,
+      name: "listing_image_fidelity_audit",
+      description: "Contrôle de fidélité entre photos réelles et images d'annonce",
+    }),
+    system: IMAGE_AUDIT_SYSTEM,
+    messages: [{ role: "user", content }],
+  });
+
+  const auditedRoles = new Set(output.images.map(({ role }) => role));
+  const allRolesAudited = generated.every(({ role }) => auditedRoles.has(role));
+  return {
+    ...output,
+    overallPassed:
+      output.overallPassed && allRolesAudited && output.images.every(({ passed }) => passed),
+  };
+}
+
+export async function assessNegotiation(
+  request: NegotiationRequest,
+  floorPrice: number,
+): Promise<NegotiationAssessment> {
+  const { output } = await generateText({
+    model: modelId(),
+    output: Output.object({
+      schema: negotiationAssessmentSchema,
+      name: "negotiation_assessment",
+      description: "Analyse factuelle d'un message acheteur et proposition de réponse",
+    }),
+    system: NEGOTIATION_SYSTEM,
+    prompt: [
+      `Article : ${request.itemTitle}`,
+      `Faits : ${request.itemFacts || "aucun fait supplémentaire"}`,
+      `Politique : ${JSON.stringify(request.policy)}`,
+      `Plancher déterministe : ${floorPrice.toFixed(2)} €`,
+      `Conversation :\n${request.conversation}`,
+      `Dernier message acheteur :\n${request.buyerMessage}`,
+      request.detectedOfferPrice !== undefined
+        ? `Prix détecté par l'extension : ${request.detectedOfferPrice.toFixed(2)} €`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+  });
   return output;
 }

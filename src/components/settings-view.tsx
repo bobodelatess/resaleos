@@ -105,11 +105,11 @@ export function SettingsView({
           </article>
 
           <article className="panel settings-card ai-settings-card">
-            <header className="settings-card-header"><span><BrainCircuit size={20} /></span><div><h2>Connecteur IA</h2><p>Le logiciel actuel fonctionne sans clé et génère des textes factuels à partir de tes données.</p></div></header>
+            <header className="settings-card-header"><span><BrainCircuit size={20} /></span><div><h2>Agent IA</h2><p>Le moteur serveur relie GPT‑5.6, GPT Image 2, Telegram et l’extension Vinted.</p></div></header>
             <div className="ai-roadmap">
-              <div className="complete"><span><Check size={14} /></span><p><strong>Disponible</strong> Détection locale de marque, taille et état à partir du texte.</p></div>
-              <div className="complete"><span><Check size={14} /></span><p><strong>Disponible</strong> Génération d’annonce sans inventer d’information.</p></div>
-              <div><span>3</span><p><strong>Prochaine connexion</strong> Analyse multimodale avec ton fournisseur d’IA, lorsque tu me préciseras lequel.</p></div>
+              <div className="complete"><span><Check size={14} /></span><p><strong>GPT‑5.6</strong> Classement des opportunités, analyse multi‑photos, annonce et négociation.</p></div>
+              <div className="complete"><span><Check size={14} /></span><p><strong>GPT Image 2</strong> Trois visuels d’annonce puis audit de fidélité avant libération.</p></div>
+              <div className="complete"><span><Check size={14} /></span><p><strong>Telegram + extension</strong> Approbations en un clic et exécution dans la session Vinted ouverte.</p></div>
             </div>
           </article>
         </div>
@@ -137,4 +137,3 @@ export function SettingsView({
     </div>
   );
 }
-

@@ -15,13 +15,13 @@ globalMemory.resaleSessions = memory;
 
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 2;
 
-function redisConfig(): { url: string; token: string } | null {
+export function redisConfig(): { url: string; token: string } | null {
   const url = process.env.UPSTASH_REDIS_REST_URL?.replace(/\/$/, "");
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   return url && token ? { url, token } : null;
 }
 
-async function redis<T>(command: Array<string | number>): Promise<T> {
+export async function redisCommand<T>(command: Array<string | number>): Promise<T> {
   const config = redisConfig();
   if (!config) throw new Error("Redis n'est pas configuré.");
   const response = await fetch(config.url, {
@@ -64,7 +64,7 @@ function memorySession(chatId: string): MemorySession {
 export async function resetSession(chatId: string): Promise<void> {
   if (redisConfig()) {
     const key = baseKey(chatId);
-    await redis(["DEL", `${key}:photos`, `${key}:context`, `${key}:analysis`]);
+    await redisCommand(["DEL", `${key}:photos`, `${key}:context`, `${key}:analysis`]);
     return;
   }
   memory.delete(chatId);
@@ -73,10 +73,10 @@ export async function resetSession(chatId: string): Promise<void> {
 export async function appendPhoto(chatId: string, fileId: string): Promise<number> {
   if (redisConfig()) {
     const key = `${baseKey(chatId)}:photos`;
-    await redis(["RPUSH", key, fileId]);
-    await redis(["LTRIM", key, -8, -1]);
-    await redis(["EXPIRE", key, SESSION_TTL_SECONDS]);
-    return redis<number>(["LLEN", key]);
+    await redisCommand(["RPUSH", key, fileId]);
+    await redisCommand(["LTRIM", key, -8, -1]);
+    await redisCommand(["EXPIRE", key, SESSION_TTL_SECONDS]);
+    return redisCommand<number>(["LLEN", key]);
   }
   const session = memorySession(chatId);
   session.photos = [...session.photos, fileId].slice(-8);
@@ -87,7 +87,7 @@ export async function appendPhoto(chatId: string, fileId: string): Promise<numbe
 export async function setContext(chatId: string, context: string): Promise<void> {
   const trimmed = context.trim().slice(0, 6000);
   if (redisConfig()) {
-    await redis(["SET", `${baseKey(chatId)}:context`, trimmed, "EX", SESSION_TTL_SECONDS]);
+    await redisCommand(["SET", `${baseKey(chatId)}:context`, trimmed, "EX", SESSION_TTL_SECONDS]);
     return;
   }
   const session = memorySession(chatId);
@@ -103,9 +103,9 @@ export async function getSession(chatId: string): Promise<{
   if (redisConfig()) {
     const key = baseKey(chatId);
     const [photos, context, analysis] = await Promise.all([
-      redis<string[]>(["LRANGE", `${key}:photos`, 0, -1]),
-      redis<string | null>(["GET", `${key}:context`]),
-      redis<string | null>(["GET", `${key}:analysis`]),
+      redisCommand<string[]>(["LRANGE", `${key}:photos`, 0, -1]),
+      redisCommand<string | null>(["GET", `${key}:context`]),
+      redisCommand<string | null>(["GET", `${key}:analysis`]),
     ]);
     return {
       photos: photos || [],
@@ -123,7 +123,7 @@ export async function getSession(chatId: string): Promise<{
 
 export async function saveAnalysis(chatId: string, analysis: GarmentAnalysis): Promise<void> {
   if (redisConfig()) {
-    await redis([
+    await redisCommand([
       "SET",
       `${baseKey(chatId)}:analysis`,
       JSON.stringify(analysis),
