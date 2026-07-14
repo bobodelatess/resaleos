@@ -30,6 +30,7 @@ import {
   getListingJob,
   saveListingJob,
   type ListingJob,
+  type OfferAction,
   type OfferDecision,
 } from "./workflow-store";
 
@@ -270,6 +271,27 @@ export async function analyzeTelegramSession(chatId: string): Promise<void> {
     return;
   }
 
+  const activeJob = await getLatestJobForChat(chatId);
+  if (
+    activeJob &&
+    [
+      "analyzing",
+      "generating_images",
+      "auditing_images",
+      "needs_image_review",
+      "awaiting_listing_approval",
+      "approved_for_publish",
+    ].includes(activeJob.status)
+  ) {
+    await sendTelegramText(
+      chatId,
+      ["analyzing", "generating_images", "auditing_images"].includes(activeJob.status)
+        ? `Un traitement est déjà en cours (${activeJob.status}). Inutile de relancer /go.`
+        : "Cet article a déjà été traité. Utilise ses boutons, /cost pour corriger le coût, ou /new pour l'article suivant.",
+    );
+    return;
+  }
+
   const job = await createListingJob({
     chatId,
     rawPhotoFileIds: session.photos,
@@ -419,6 +441,21 @@ export async function sendNegotiationNotification(
   );
 }
 
+export async function sendOfferExecutionFailure(action: OfferAction): Promise<void> {
+  const chatId = configuredChatId();
+  if (!chatId) return;
+  await sendTelegramText(
+    chatId,
+    [
+      "⚠️ DÉCISION NON EXÉCUTÉE DANS VINTED",
+      action.itemTitle,
+      `Décision : ${action.decision || "inconnue"}`,
+      `Erreur après ${action.executionAttempts} tentatives : ${action.executionError || "interface non reconnue"}`,
+      "Ouvre la conversation, vérifie l'action manuellement puis recharge l'extension si l'interface a changé.",
+    ].join("\n"),
+  );
+}
+
 async function handleListingCallback(
   chatId: string,
   callbackId: string,
@@ -442,6 +479,9 @@ async function handleListingCallback(
   }
 
   if (action === "regen") {
+    if (!["awaiting_listing_approval", "needs_image_review"].includes(job.status)) {
+      throw new Error("Cette annonce ne peut plus être régénérée à cette étape.");
+    }
     if (job.regenerationCount >= 2) {
       throw new Error("Deux régénérations ont déjà été tentées. Reprends les photos réelles.");
     }
@@ -451,7 +491,14 @@ async function handleListingCallback(
       callback_query_id: callbackId,
       text: "Nouvelle génération lancée",
     });
-    await generateAuditAndPresent(job);
+    try {
+      await generateAuditAndPresent(job);
+    } catch (error) {
+      job.status = "failed";
+      job.error = error instanceof Error ? error.message : String(error);
+      await saveListingJob(job);
+      throw error;
+    }
     return;
   }
 
@@ -543,7 +590,7 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
         "",
         "L'extension classe aussi les annonces visibles et gère les messages. Les offres rentables arrivent ici avec Accepter / Contre-proposer / Refuser.",
         "",
-        "/status affiche l'étape en cours. /reply reste disponible pour un message manuel.",
+        "/cost 24 corrige le coût sans régénérer. /status affiche l'étape en cours. /reply reste disponible pour un message manuel.",
       ].join("\n"),
     );
     return;
@@ -577,6 +624,29 @@ export async function handleTelegramUpdate(update: TelegramUpdate): Promise<void
     await sendTelegramText(
       chatId,
       `${session.photos.length} photo(s) · contexte ${session.context ? "présent" : "absent"} · dernière étape ${job?.status || "aucune"}.`,
+    );
+    return;
+  }
+
+  if (command === "/cost") {
+    const value = Number(
+      text.replace(/^\/cost(?:@\S+)?\s*/i, "").trim().replace(",", "."),
+    );
+    if (!Number.isFinite(value) || value <= 0 || value > 100000) {
+      await sendTelegramText(chatId, "Utilise par exemple : /cost 24,50");
+      return;
+    }
+    const job = await getLatestJobForChat(chatId);
+    if (!job) {
+      await sendTelegramText(chatId, "Aucun article récent à mettre à jour.");
+      return;
+    }
+    job.economics.acquisitionCost = Math.round(value * 100) / 100;
+    await saveListingJob(job);
+    await appendSessionContext(chatId, `achat ${value.toFixed(2)} €`);
+    await sendTelegramText(
+      chatId,
+      `Coût d'achat mis à jour : ${value.toFixed(2)} €. Le plancher de négociation sera recalculé.`,
     );
     return;
   }

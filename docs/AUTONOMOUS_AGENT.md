@@ -44,6 +44,8 @@ achat 24 €, frais 2 €, profit 18 €, ROI 45, taille M
 /go
 ```
 
+Si le coût a été oublié, `/cost 24,50` met à jour le job courant sans payer une nouvelle analyse ni régénérer les images.
+
 GPT‑5.6 produit une fiche Zod stricte. `readyForGeneration=false` bloque la suite s'il manque une preuve nécessaire. Les originaux Telegram restent la source de vérité ; leurs identifiants ne sont jamais envoyés à l'extension.
 
 ## 3. Images d'annonce

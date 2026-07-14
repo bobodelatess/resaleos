@@ -73,6 +73,7 @@ export interface OfferAction {
   askingPrice: number;
   suggestedCounterPrice: number;
   assessment: NegotiationAssessment;
+  executionAttempts: number;
   decision?: OfferDecision;
   executionText?: string;
   executionError?: string;
@@ -274,7 +275,10 @@ export async function getOfferAction(id: string): Promise<OfferAction | undefine
 }
 
 export async function createOfferAction(
-  input: Omit<OfferAction, "id" | "createdAt" | "updatedAt" | "status">,
+  input: Omit<
+    OfferAction,
+    "id" | "createdAt" | "updatedAt" | "status" | "executionAttempts"
+  >,
 ): Promise<OfferAction> {
   const now = new Date().toISOString();
   const action: OfferAction = {
@@ -283,6 +287,7 @@ export async function createOfferAction(
     createdAt: now,
     updatedAt: now,
     status: "awaiting_user",
+    executionAttempts: 0,
   };
   await saveOfferAction(action);
   return action;
@@ -325,7 +330,12 @@ export async function acknowledgeOfferAction(
 ): Promise<OfferAction> {
   const action = await getOfferAction(id);
   if (!action) throw new Error("Action introuvable.");
-  action.status = ok ? "executed" : "failed";
+  action.executionAttempts = (action.executionAttempts || 0) + 1;
+  action.status = ok
+    ? "executed"
+    : action.executionAttempts >= 3
+      ? "failed"
+      : "ready_for_extension";
   action.executionError = error.slice(0, 1000);
   await saveOfferAction(action);
   return action;

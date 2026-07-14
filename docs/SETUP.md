@@ -103,6 +103,8 @@ achat 18 €, frais 2 €, profit 15 €, ROI 40, taille M
 /go
 ```
 
+En cas d'oubli, `/cost 18` corrige le coût du job courant sans relancer les modèles.
+
 Résultat attendu :
 
 1. analyse de l'article ;

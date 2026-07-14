@@ -87,7 +87,7 @@ async function syncActions() {
       });
       executed += 1;
     } catch (error) {
-      await api("/api/automation/actions/pending", {
+      const acknowledgement = await api("/api/automation/actions/pending", {
         method: "POST",
         body: {
           id: action.id,
@@ -95,6 +95,7 @@ async function syncActions() {
           error: error instanceof Error ? error.message : String(error),
         },
       });
+      if (acknowledgement.status === "ready_for_extension") waiting += 1;
     }
   }
   return { executed, waiting };

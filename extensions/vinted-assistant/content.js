@@ -120,8 +120,17 @@ async function maybePublish(missing) {
     ["publier", "mettre en ligne", "ajouter"].includes(normalize(button.textContent)),
   );
   if (!publish || publish.disabled || publish.getAttribute("aria-disabled") === "true") return false;
+  const initialUrl = location.href;
   publish.click();
-  return true;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await pause(250);
+    if (location.href !== initialUrl) return true;
+    const visibleError = [...document.querySelectorAll(
+      '[role="alert"], [aria-invalid="true"], [data-testid*="error"]',
+    )].some((element) => visible(element) && normalize(element.textContent).length > 0);
+    if (visibleError) return false;
+  }
+  return false;
 }
 
 async function fillListing(payload, autoPublish) {
@@ -223,7 +232,10 @@ function conversationSnapshot() {
     '[class*="message"]',
     '[aria-label*="message" i]',
   ];
-  const nodes = [...document.querySelectorAll(selectors.join(","))].filter(visible);
+  const selector = selectors.join(",");
+  const nodes = [...document.querySelectorAll(selector)].filter(
+    (element) => visible(element) && !element.querySelector(selector),
+  );
   const texts = [];
   for (const node of nodes) {
     const text = String(node.innerText || node.textContent || "").trim();
@@ -267,7 +279,8 @@ async function evaluateVisibleConversation() {
     return pageText.length >= 5 && title.length >= 5 &&
       (pageText.includes(title) || title.includes(pageText));
   });
-  const itemPackage = matchedPackage || latestPackage;
+  const itemPackage = matchedPackage ||
+    (listingPackages.length <= 1 ? (listingPackages[0] || latestPackage) : null);
   if (!itemPackage?.draft) return;
   const snapshot = conversationSnapshot();
   if (!snapshot.buyerMessage) return;
@@ -352,12 +365,18 @@ async function clickOfferButton(label, price) {
 }
 
 async function executeOfferAction(action) {
+  const executionKey = `executedAction:${action.id}`;
+  const alreadyExecuted = await chrome.storage.local.get(executionKey);
+  if (alreadyExecuted[executionKey]) {
+    return { ok: true, executed: action.decision, alreadyExecuted: true };
+  }
   const current = `${location.origin}${location.pathname}`.replace(/\/$/, "");
   const expectedUrl = new URL(action.conversationUrl);
   const expected = `${expectedUrl.origin}${expectedUrl.pathname}`.replace(/\/$/, "");
   if (current !== expected) throw new Error("La conversation ouverte ne correspond pas à l'offre.");
   if (action.decision === "accept_offer") {
     await clickOfferButton("accepter", action.offerPrice);
+    await chrome.storage.local.set({ [executionKey]: new Date().toISOString() });
     return { ok: true, executed: "accept_offer" };
   }
   if (action.decision === "decline_offer") {
@@ -366,9 +385,11 @@ async function executeOfferAction(action) {
     } catch {
       await sendBuyerMessage(action.executionText);
     }
+    await chrome.storage.local.set({ [executionKey]: new Date().toISOString() });
     return { ok: true, executed: "decline_offer" };
   }
   await sendBuyerMessage(action.executionText);
+  await chrome.storage.local.set({ [executionKey]: new Date().toISOString() });
   return { ok: true, executed: "counter_offer" };
 }
 

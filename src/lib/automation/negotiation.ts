@@ -52,7 +52,11 @@ export async function evaluateNegotiation(
 ): Promise<NegotiationResult> {
   const floorPrice = calculateFloorPrice(request);
   const assessment = await assessNegotiation(request, floorPrice);
-  const offerPrice = request.detectedOfferPrice ?? assessment.detectedOfferPrice;
+  const modelOffer =
+    assessment.intent === "offer" && assessment.confidence >= 0.9
+      ? assessment.detectedOfferPrice
+      : null;
+  const offerPrice = request.detectedOfferPrice ?? modelOffer;
 
   if (offerPrice !== null && offerPrice !== undefined) {
     if (request.policy.acquisitionCost <= 0) {
@@ -63,6 +67,17 @@ export async function evaluateNegotiation(
         execution: {
           mode: "manual_review",
           text: "Coût d'achat manquant : aucune offre ne peut être acceptée ou contre-proposée automatiquement.",
+        },
+      };
+    }
+    if (floorPrice > request.policy.askingPrice) {
+      return {
+        floorPrice,
+        offerPrice,
+        assessment,
+        execution: {
+          mode: "manual_review",
+          text: `Le plancher (${floorPrice.toFixed(2)} €) dépasse le prix affiché (${request.policy.askingPrice.toFixed(2)} €). Corrige le prix de l'annonce avant toute négociation.`,
         },
       };
     }

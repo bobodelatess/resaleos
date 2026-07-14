@@ -127,6 +127,7 @@ export async function rankSourcingCandidates({
   });
 
   const candidateIds = new Set(normalized.map(({ id }) => id));
+  const candidateById = new Map(normalized.map((candidate) => [candidate.id, candidate]));
   const seen = new Set<string>();
   const recommendations = output.recommendations
     .filter(({ candidateId }) => candidateIds.has(candidateId) && !seen.has(candidateId))
@@ -135,7 +136,35 @@ export async function rankSourcingCandidates({
       return recommendation;
     })
     .sort((left, right) => left.rank - right.rank)
-    .map((recommendation, index) => ({ ...recommendation, rank: index + 1 }));
+    .map((recommendation, index) => {
+      const candidate = candidateById.get(recommendation.candidateId);
+      const cost = candidate?.totalPrice ?? Number.POSITIVE_INFINITY;
+      const expectedProfit = recommendation.estimatedResaleExpected - cost;
+      const expectedRoiPercent = cost > 0 ? (expectedProfit / cost) * 100 : -10000;
+      const maximumFromProfit = recommendation.estimatedResaleExpected - profile.minProfit;
+      const maximumFromRoi =
+        recommendation.estimatedResaleExpected / (1 + profile.minRoiPercent / 100);
+      const maximumBuyPrice = Math.max(
+        0,
+        Math.min(recommendation.maximumBuyPrice, maximumFromProfit, maximumFromRoi),
+      );
+      const thresholdsPassed =
+        cost <= profile.budget &&
+        cost <= maximumBuyPrice &&
+        expectedProfit >= profile.minProfit &&
+        expectedRoiPercent >= profile.minRoiPercent;
+      return {
+        ...recommendation,
+        rank: index + 1,
+        verdict:
+          recommendation.verdict === "buy" && !thresholdsPassed
+            ? ("watch" as const)
+            : recommendation.verdict,
+        maximumBuyPrice: Math.round(maximumBuyPrice * 100) / 100,
+        expectedProfit: Math.round(expectedProfit * 100) / 100,
+        expectedRoiPercent: Math.round(expectedRoiPercent * 10) / 10,
+      };
+    });
 
   if (!recommendations.length) {
     throw new Error("Le classement IA ne correspond à aucun candidat fourni.");

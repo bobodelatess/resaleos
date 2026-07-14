@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { hasAutomationAccess } from "@/lib/automation/security";
+import { sendOfferExecutionFailure } from "@/lib/automation/telegram";
 import {
   acknowledgeOfferAction,
   listReadyOfferActions,
@@ -25,7 +26,9 @@ export async function POST(request: NextRequest) {
   }
   try {
     const body = acknowledgeSchema.parse(await request.json());
-    return NextResponse.json(await acknowledgeOfferAction(body.id, body.ok, body.error));
+    const action = await acknowledgeOfferAction(body.id, body.ok, body.error);
+    if (action.status === "failed") await sendOfferExecutionFailure(action);
+    return NextResponse.json(action);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Accusé de réception invalide." },
