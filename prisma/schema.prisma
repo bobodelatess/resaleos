@@ -1,0 +1,344 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RiskLevel {
+  LOW
+  MODERATE
+  HIGH
+}
+
+enum SourcingCandidateStatus {
+  DISCOVERED
+  WATCHING
+  RECOMMENDED
+  PURCHASED
+  REJECTED
+  EXPIRED
+}
+
+enum ItemCondition {
+  NEW_WITH_TAGS
+  NEW_WITHOUT_TAGS
+  VERY_GOOD
+  GOOD
+  SATISFACTORY
+}
+
+enum InventoryItemStatus {
+  ORDERED
+  RECEIVED
+  LISTED
+  SOLD
+  ARCHIVED
+}
+
+enum ListingJobStatus {
+  ANALYZING
+  NEEDS_MORE_PHOTOS
+  GENERATING_IMAGES
+  AUDITING_IMAGES
+  NEEDS_IMAGE_REVIEW
+  AWAITING_LISTING_APPROVAL
+  APPROVED_FOR_PUBLISH
+  PUBLISHED
+  FAILED
+}
+
+enum ListingPhotoType {
+  ORIGINAL
+  GENERATED
+}
+
+enum ListingPhotoRole {
+  HERO
+  FRONT
+  BACK
+  DETAIL
+}
+
+enum PackageSize {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum MarketplaceListingStatus {
+  DRAFT
+  ACTIVE
+  SOLD
+  REMOVED
+}
+
+enum MessageSender {
+  BUYER
+  SELLER
+  SYSTEM
+}
+
+enum MessageType {
+  TEXT
+  OFFER
+  EVENT
+}
+
+enum OfferActionStatus {
+  AWAITING_USER
+  READY_FOR_EXTENSION
+  EXECUTED
+  REJECTED
+  FAILED
+}
+
+enum OfferDecision {
+  ACCEPT_OFFER
+  COUNTER_OFFER
+  DECLINE_OFFER
+}
+
+model SourcingProfile {
+  id                String              @id @default(uuid()) @db.Uuid
+  name              String
+  category          String
+  brands            String[]            @default([])
+  sizes             String[]            @default([])
+  colors            String[]            @default([])
+  maximumBudget     Decimal             @db.Decimal(12, 2)
+  minimumProfit     Decimal             @db.Decimal(12, 2)
+  minimumRoiPercent Decimal             @db.Decimal(7, 2)
+  maximumRisk       RiskLevel           @default(MODERATE)
+  active            Boolean             @default(true)
+  createdAt         DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @db.Timestamptz(3)
+  candidates        SourcingCandidate[]
+
+  @@index([active, updatedAt])
+}
+
+model SourcingCandidate {
+  id                   String                  @id @default(uuid()) @db.Uuid
+  marketplace          String
+  externalId           String
+  url                  String                  @db.Text
+  title                String
+  price                Decimal                 @db.Decimal(12, 2)
+  shippingPrice        Decimal                 @default(0) @db.Decimal(12, 2)
+  buyerProtectionPrice Decimal                 @default(0) @db.Decimal(12, 2)
+  totalPrice           Decimal                 @db.Decimal(12, 2)
+  brand                String?
+  size                 String?
+  condition            ItemCondition?
+  description          String?                 @db.Text
+  imageUrl             String?                 @db.Text
+  firstSeenAt          DateTime                @default(now()) @db.Timestamptz(3)
+  lastSeenAt           DateTime                @default(now()) @db.Timestamptz(3)
+  status               SourcingCandidateStatus @default(DISCOVERED)
+  rawData              Json?
+  sourcingProfileId    String?                 @db.Uuid
+  sourcingProfile      SourcingProfile?        @relation(fields: [sourcingProfileId], references: [id], onDelete: SetNull)
+  inventoryItem        InventoryItem?
+
+  @@unique([marketplace, externalId])
+  @@index([sourcingProfileId, status, lastSeenAt])
+  @@index([status, lastSeenAt])
+}
+
+model InventoryItem {
+  id                  String               @id @default(uuid()) @db.Uuid
+  sku                 String               @unique
+  title               String
+  brand               String?
+  category            String
+  size                String?
+  condition           ItemCondition
+  purchasePrice       Decimal              @db.Decimal(12, 2)
+  additionalCosts     Decimal              @default(0) @db.Decimal(12, 2)
+  status              InventoryItemStatus  @default(ORDERED)
+  storageLocation     String?
+  purchasedAt         DateTime             @db.Timestamptz(3)
+  receivedAt          DateTime?            @db.Timestamptz(3)
+  listedAt            DateTime?            @db.Timestamptz(3)
+  soldAt              DateTime?            @db.Timestamptz(3)
+  createdAt           DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime             @updatedAt @db.Timestamptz(3)
+  sourceCandidateId   String?              @unique @db.Uuid
+  sourceCandidate     SourcingCandidate?   @relation(fields: [sourceCandidateId], references: [id], onDelete: SetNull)
+  listingJobs         ListingJob[]
+  marketplaceListings MarketplaceListing[]
+  sale                Sale?
+
+  @@index([status, updatedAt])
+  @@index([brand, category])
+}
+
+model ListingJob {
+  id                String           @id @default(uuid()) @db.Uuid
+  chatId            String
+  status            ListingJobStatus @default(ANALYZING)
+  context           String           @db.Text
+  acquisitionCost   Decimal          @db.Decimal(12, 2)
+  additionalCosts   Decimal          @default(0) @db.Decimal(12, 2)
+  minimumProfit     Decimal          @db.Decimal(12, 2)
+  minimumRoiPercent Decimal          @db.Decimal(7, 2)
+  analysis          Json?
+  imageAudit        Json?
+  error             String?          @db.Text
+  regenerationCount Int              @default(0)
+  approvedAt        DateTime?        @db.Timestamptz(3)
+  publishedAt       DateTime?        @db.Timestamptz(3)
+  createdAt         DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime         @updatedAt @db.Timestamptz(3)
+  inventoryItemId   String?          @db.Uuid
+  inventoryItem     InventoryItem?   @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  photos            ListingPhoto[]
+  draft             ListingDraft?
+
+  @@index([status, updatedAt])
+  @@index([chatId, createdAt])
+  @@index([inventoryItemId])
+}
+
+model ListingPhoto {
+  id              String            @id @default(uuid()) @db.Uuid
+  listingJobId    String            @db.Uuid
+  listingJob      ListingJob        @relation(fields: [listingJobId], references: [id], onDelete: Cascade)
+  type            ListingPhotoType
+  role            ListingPhotoRole?
+  sourceReference String            @db.Text
+  publicUrl       String?           @db.Text
+  fidelityScore   Decimal?          @db.Decimal(5, 2)
+  passed          Boolean?
+  metadata        Json?
+  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
+
+  @@index([listingJobId, type, createdAt])
+}
+
+model ListingDraft {
+  id           String        @id @default(uuid()) @db.Uuid
+  listingJobId String        @unique @db.Uuid
+  listingJob   ListingJob    @relation(fields: [listingJobId], references: [id], onDelete: Cascade)
+  title        String
+  description  String        @db.Text
+  price        Decimal       @db.Decimal(12, 2)
+  packageSize  PackageSize
+  brand        String?
+  category     String
+  size         String?
+  condition    ItemCondition
+  createdAt    DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime      @updatedAt @db.Timestamptz(3)
+}
+
+model MarketplaceListing {
+  id              String                   @id @default(uuid()) @db.Uuid
+  inventoryItemId String                   @db.Uuid
+  inventoryItem   InventoryItem            @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  marketplace     String
+  externalId      String?
+  url             String?                  @db.Text
+  askingPrice     Decimal                  @db.Decimal(12, 2)
+  status          MarketplaceListingStatus @default(DRAFT)
+  publishedAt     DateTime?                @db.Timestamptz(3)
+  removedAt       DateTime?                @db.Timestamptz(3)
+  createdAt       DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime                 @updatedAt @db.Timestamptz(3)
+  conversations   Conversation[]
+  sale            Sale?
+
+  @@unique([marketplace, externalId])
+  @@index([inventoryItemId, status])
+  @@index([status, updatedAt])
+}
+
+model Conversation {
+  id                   String             @id @default(uuid()) @db.Uuid
+  marketplaceListingId String             @db.Uuid
+  marketplaceListing   MarketplaceListing @relation(fields: [marketplaceListingId], references: [id], onDelete: Cascade)
+  marketplace          String
+  externalId           String?
+  url                  String             @db.Text
+  buyerIdentifier      String?
+  lastMessageAt        DateTime?          @db.Timestamptz(3)
+  createdAt            DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime           @updatedAt @db.Timestamptz(3)
+  messages             Message[]
+  offerActions         OfferAction[]
+
+  @@unique([marketplace, externalId])
+  @@index([marketplaceListingId, lastMessageAt])
+}
+
+model Message {
+  id             String        @id @default(uuid()) @db.Uuid
+  conversationId String        @db.Uuid
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  externalId     String?
+  sender         MessageSender
+  type           MessageType
+  content        String        @db.Text
+  offeredPrice   Decimal?      @db.Decimal(12, 2)
+  sentAt         DateTime      @default(now()) @db.Timestamptz(3)
+  processedAt    DateTime?     @db.Timestamptz(3)
+  rawData        Json?
+  offerActions   OfferAction[]
+
+  @@unique([conversationId, externalId])
+  @@index([conversationId, sentAt])
+}
+
+model OfferAction {
+  id                    String            @id @default(uuid()) @db.Uuid
+  conversationId        String            @db.Uuid
+  conversation          Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  messageId             String?           @db.Uuid
+  message               Message?          @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  status                OfferActionStatus @default(AWAITING_USER)
+  decision              OfferDecision?
+  offerPrice            Decimal           @db.Decimal(12, 2)
+  floorPrice            Decimal           @db.Decimal(12, 2)
+  askingPrice           Decimal           @db.Decimal(12, 2)
+  suggestedCounterPrice Decimal?          @db.Decimal(12, 2)
+  executionText         String?           @db.Text
+  executionAttempts     Int               @default(0)
+  executionError        String?           @db.Text
+  createdAt             DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime          @updatedAt @db.Timestamptz(3)
+
+  @@index([status, updatedAt])
+  @@index([conversationId, createdAt])
+  @@index([messageId])
+}
+
+model Sale {
+  id                   String              @id @default(uuid()) @db.Uuid
+  inventoryItemId      String              @unique @db.Uuid
+  inventoryItem        InventoryItem       @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  marketplaceListingId String?             @unique @db.Uuid
+  marketplaceListing   MarketplaceListing? @relation(fields: [marketplaceListingId], references: [id], onDelete: SetNull)
+  salePrice            Decimal             @db.Decimal(12, 2)
+  platformFees         Decimal             @default(0) @db.Decimal(12, 2)
+  shippingCosts        Decimal?            @db.Decimal(12, 2)
+  netProfit            Decimal             @db.Decimal(12, 2)
+  soldAt               DateTime            @db.Timestamptz(3)
+  createdAt            DateTime            @default(now()) @db.Timestamptz(3)
+}
+
+model AuditEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  entityType String
+  entityId   String
+  action     String
+  source     String
+  payload    Json?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([action, createdAt])
+}

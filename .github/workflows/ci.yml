@@ -2,7 +2,7 @@ name: Quality
 
 on:
   push:
-    branches: [main]
+    branches: [main, "refactor/**"]
   pull_request:
 
 permissions:
@@ -12,17 +12,44 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://resaleos:resaleos_test@127.0.0.1:5432/resaleos_test?schema=public
+      RUN_DATABASE_TESTS: "true"
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: resaleos_test
+          POSTGRES_USER: resaleos
+          POSTGRES_PASSWORD: resaleos_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U resaleos -d resaleos_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 20.19.5
           cache: npm
       - name: Install
         run: npm ci
+      - name: Generate Prisma Client
+        run: npm run db:generate
+      - name: Validate database schema
+        run: npm run db:validate
+      - name: Create test tables
+        run: npm run db:migrate:deploy
+      - name: Check demonstration seed
+        run: npm run db:seed
       - name: Lint
         run: npm run lint
+      - name: Test
+        run: npm run test
       - name: Build
         run: npm run build

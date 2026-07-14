@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
-export function GET() {
+import { checkDatabaseHealth } from "@/lib/database/health";
+
+export async function GET() {
   const redis = Boolean(
     process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN,
   );
@@ -8,9 +10,12 @@ export function GET() {
     process.env.OPENAI_API_KEY &&
       (process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID),
   );
+  const database = await checkDatabaseHealth();
+
   return NextResponse.json({
     ok: true,
     service: "resaleos",
+    ...database,
     textModel: process.env.RESALE_AI_MODEL || "openai/gpt-5.6",
     imageModel: process.env.RESALE_IMAGE_MODEL || "gpt-image-2",
     aiGatewayConfigured: Boolean(

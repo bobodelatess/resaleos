@@ -13,11 +13,11 @@ ResaleOS est un agent d'achat‑revente de vêtements piloté depuis Telegram et
 - **Négociation** : réponses factuelles et contre‑offres sous le plancher automatiques ; offres rentables envoyées dans Telegram avec **Accepter / Contre‑proposer / Refuser**.
 - **Gestion** : application web locale pour opportunités, stock, ventes, finance, QR/SKU et export/import.
 
-Le flux exact et ses limites sont décrits dans [docs/AUTONOMOUS_AGENT.md](docs/AUTONOMOUS_AGENT.md). L'étude des canaux et des options d'intégration est dans [docs/AUTOMATION_BLUEPRINT.md](docs/AUTOMATION_BLUEPRINT.md).
+Le flux exact et ses limites sont décrits dans [docs/AUTONOMOUS_AGENT.md](docs/AUTONOMOUS_AGENT.md). L'étude des canaux et des options d'intégration est dans [docs/AUTOMATION_BLUEPRINT.md](docs/AUTOMATION_BLUEPRINT.md). La première étape de la future mémoire centrale PostgreSQL est expliquée dans [docs/RESTRUCTURE_STEP_1_DATABASE.md](docs/RESTRUCTURE_STEP_1_DATABASE.md).
 
 ## Démarrage local
 
-Prérequis : Node.js 20.9 ou plus récent.
+Prérequis : Node.js 20.19 ou plus récent.
 
 ```bash
 npm install
@@ -40,6 +40,7 @@ Suis [docs/SETUP.md](docs/SETUP.md). Les secrets restent côté serveur et ne do
 ## Structure
 
 - `src/lib/automation/` : IA, génération/audit image, règles de négociation, jobs et Telegram ;
+- `src/lib/database/` et `prisma/` : future mémoire PostgreSQL centrale, encore isolée des workflows actuels ;
 - `src/app/api/automation/` : sourcing, analyse, négociation, actions et paquets approuvés ;
 - `src/app/api/channels/telegram/` : webhook messages + boutons ;
 - `extensions/vinted-assistant/` : sourcing, formulaire, publication et messagerie ;
