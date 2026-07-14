@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# Prisma Client is regenerated from prisma/schema.prisma.
+/src/generated/prisma/
+
 # next.js
 /.next/
 /out/
