@@ -1,5 +1,4 @@
 import { generateText, Output } from "ai";
-import type { DataContent } from "@ai-sdk/provider-utils";
 import {
   buyerReplySchema,
   garmentAnalysisSchema,
@@ -9,7 +8,7 @@ import {
 import { BUYER_REPLY_SYSTEM, GARMENT_ANALYSIS_SYSTEM } from "./prompts";
 
 export interface AutomationImage {
-  data: DataContent | URL;
+  data: string | Uint8Array | ArrayBuffer | URL;
   mediaType?: string;
 }
 
